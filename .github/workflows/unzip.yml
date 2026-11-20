@@ -3,7 +3,6 @@ on:
   workflow_dispatch:
 permissions:
   contents: write
-  workflows: write
 jobs:
   unzip:
     runs-on: ubuntu-latest
@@ -14,6 +13,10 @@ jobs:
           unzip -o safestreak.zip
           cp -a safestreak-export/. .
           rm -rf safestreak.zip safestreak-export
+          echo "===== .github/workflows/pages.yml ====="
+          cat .github/workflows/pages.yml
+          echo "===== end pages.yml ====="
+          rm .github/workflows/pages.yml
           git config user.name "vuducdung1308"
           git config user.email "vuducdung1308@gmail.com"
           git add -A
