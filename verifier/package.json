@@ -1,0 +1,1 @@
+{"dependencies":{"ethers":"^6.13.0","express":"^4.21.0"},"name":"safestreak-verifier","private":true,"scripts":{"start":"node server.js"},"type":"commonjs","version":"0.1.0"}
