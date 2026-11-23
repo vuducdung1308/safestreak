@@ -180,6 +180,166 @@ app.post('/attest', async (req, res) => {
   }
 })
 
+// --- GET /leaderboard + GET /stats ---
+// The frontend CANNOT read logs itself: public BSC RPCs reject (or
+// rate-limit) wide eth_getLogs ranges, so the leaderboard/stats pages showed
+// a raw rate-limit error (23/11 screenshot). This verifier has a log-capable
+// RPC, so it serves the data instead — same pattern as the AgentAllowance
+// verifier. 120s in-memory cache: a full log scan costs dozens of RPC calls.
+// All log queries start at the deploy block — never block 0.
+const DEPLOY_BLOCK = 134663434
+const AGENT_ID_ADDRESS = process.env.AGENT_ID_ADDRESS || '0x60b9262456de011f7d15a54cdd8c48baaa8b022f'
+const SAFESTREAK_READ_ABI = [
+  'event Committed(address indexed user, uint256 indexed dayId)',
+  'event Revealed(address indexed user, uint256 indexed dayId, bool correct)',
+  'event StreakUpdated(address indexed user, uint8 indexed branch, uint256 newStreak, uint256 bestStreak)',
+  'event Attested(address indexed user, address indexed token, address indexed spender, uint64 approvalBlock, bytes32 revokeTxHash, address verifier)',
+  'function profile(address user) view returns (uint256 points, uint256 joinStreak, uint256 bestJoinStreak, uint256 lastJoinDay, uint256 correctStreak, uint256 bestCorrectStreak, uint256 bestCorrectAt, uint256 lastCorrectDay, uint256 lastRevealDay)',
+]
+const AGENT_ID_MIN_ABI = ['function handleOf(address account) view returns (string)']
+
+const LOG_CHUNK = 2000
+const LOG_CONCURRENCY = 10
+const CACHE_TTL_MS = 120_000
+let leaderboardCache = { at: 0, data: null }
+let statsCache = { at: 0, data: null }
+
+function shortAddress(addr) {
+  const a = String(addr || '')
+  return a.length > 10 ? a.slice(0, 6) + '...' + a.slice(-4) : a
+}
+
+// Chunked event scan from the deploy block to latest, in parallel batches.
+// A single getLogs over the whole range exceeds the RPC log limit.
+async function getEventLogs(contract, filter) {
+  const latest = await provider.getBlockNumber()
+  const ranges = []
+  for (let to = latest; to >= DEPLOY_BLOCK; to -= LOG_CHUNK) {
+    ranges.push({ fromBlock: Math.max(to - LOG_CHUNK + 1, DEPLOY_BLOCK), toBlock: to })
+  }
+  const out = []
+  for (let i = 0; i < ranges.length; i += LOG_CONCURRENCY) {
+    const batch = ranges.slice(i, i + LOG_CONCURRENCY)
+    const results = await Promise.all(
+      batch.map((r) => contract.queryFilter(filter, r.fromBlock, r.toBlock)),
+    )
+    for (const chunk of results) out.push(...chunk)
+  }
+  return out
+}
+
+async function blockTimestamps(blockNumbers) {
+  const map = new Map()
+  const uniq = [...new Set(blockNumbers.map(Number))]
+  for (let i = 0; i < uniq.length; i += LOG_CONCURRENCY) {
+    const batch = uniq.slice(i, i + LOG_CONCURRENCY)
+    const results = await Promise.all(
+      batch.map(async (n) => {
+        try {
+          const b = await provider.getBlock(n)
+          return [n, b ? Number(b.timestamp) : null]
+        } catch {
+          return [n, null]
+        }
+      }),
+    )
+    for (const [n, ts] of results) if (ts) map.set(n, ts)
+  }
+  return map
+}
+
+async function computeLeaderboard() {
+  const now = Date.now()
+  if (leaderboardCache.data && now - leaderboardCache.at < CACHE_TTL_MS) {
+    return leaderboardCache.data
+  }
+  if (!provider || !SAFESTREAK_ADDRESS) {
+    throw new Error('verifier not configured: RPC_URL / SAFESTREAK_ADDRESS')
+  }
+  const contract = new ethers.Contract(SAFESTREAK_ADDRESS, SAFESTREAK_READ_ABI, provider)
+  const [revealed, streaks] = await Promise.all([
+    getEventLogs(contract, contract.filters.Revealed()),
+    getEventLogs(contract, contract.filters.StreakUpdated()),
+  ])
+  const users = [...new Set([...revealed, ...streaks].map((e) => e.args.user))]
+  const rows = []
+  for (const user of users) {
+    const p = await contract.profile(user)
+    const totalCorrect = revealed.filter(
+      (e) => e.args.user.toLowerCase() === user.toLowerCase() && e.args.correct,
+    ).length
+    rows.push({
+      address: user,
+      points: Number(p[0]),
+      totalCorrect,
+      best: Number(p[5]),
+    })
+  }
+  rows.sort((a, b) => b.points - a.points || b.best - a.best)
+  // .ai names from the Agent ID contract; fall back to the short address.
+  const agentId = new ethers.Contract(AGENT_ID_ADDRESS, AGENT_ID_MIN_ABI, provider)
+  for (const r of rows) {
+    try {
+      r.handle = (await agentId.handleOf(r.address)) || shortAddress(r.address)
+    } catch {
+      r.handle = shortAddress(r.address)
+    }
+  }
+  const data = { totalAgents: rows.length, rows, updatedAt: Math.floor(now / 1000) }
+  leaderboardCache = { at: now, data }
+  return data
+}
+
+async function computeStats() {
+  const now = Date.now()
+  if (statsCache.data && now - statsCache.at < CACHE_TTL_MS) return statsCache.data
+  if (!provider || !SAFESTREAK_ADDRESS) {
+    throw new Error('verifier not configured: RPC_URL / SAFESTREAK_ADDRESS')
+  }
+  const contract = new ethers.Contract(SAFESTREAK_ADDRESS, SAFESTREAK_READ_ABI, provider)
+  const [committed, revealed, attested] = await Promise.all([
+    getEventLogs(contract, contract.filters.Committed()),
+    getEventLogs(contract, contract.filters.Revealed()),
+    getEventLogs(contract, contract.filters.Attested()),
+  ])
+  const users = new Set([...revealed, ...committed].map((e) => e.args.user.toLowerCase()))
+  const tsMap = await blockTimestamps(
+    [...committed, ...revealed, ...attested].map((e) => e.blockNumber),
+  )
+  const byDay = {}
+  for (const e of [...committed, ...revealed, ...attested]) {
+    const ts = tsMap.get(e.blockNumber)
+    const day = ts ? new Date(ts * 1000).toISOString().slice(0, 10) : `block-${e.blockNumber}`
+    byDay[day] = (byDay[day] || 0) + 1
+  }
+  const data = {
+    uniqueAgentIds: users.size,
+    byType: { Committed: committed.length, Revealed: revealed.length, Attested: attested.length },
+    byDay,
+    updatedAt: Math.floor(now / 1000),
+  }
+  statsCache = { at: now, data }
+  return data
+}
+
+app.get('/leaderboard', async (req, res) => {
+  try {
+    return res.json(await computeLeaderboard())
+  } catch (err) {
+    console.error('GET /leaderboard error:', err && err.message ? err.message : 'unknown error')
+    return res.status(500).json({ error: 'could not load leaderboard' })
+  }
+})
+
+app.get('/stats', async (req, res) => {
+  try {
+    return res.json(await computeStats())
+  } catch (err) {
+    console.error('GET /stats error:', err && err.message ? err.message : 'unknown error')
+    return res.status(500).json({ error: 'could not load stats' })
+  }
+})
+
 init()
   .then(() => {
     app.listen(PORT, () => console.log(`SafeStreak verifier listening on ${PORT}`))
