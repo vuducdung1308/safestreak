@@ -31,6 +31,10 @@ const SAFESTREAK_ADDRESS = import.meta.env.VITE_SAFESTREAK_ADDRESS || ''
 const AGENT_ID_ADDRESS = import.meta.env.VITE_AGENT_ID_ADDRESS || ''
 const RPC_URL = import.meta.env.VITE_RPC_URL || ''
 const VERIFIER_URL = import.meta.env.VITE_VERIFIER_URL || ''
+// Badge contract (soulbound streak badges) — used ONLY for the on-chain proof
+// links (BscScan) in the UI. Never used in any transaction here.
+const BADGE_ADDRESS = '0xF1bC1504Dc3fF3A8039226961B4915890bcDBB4A'
+const BSCSCAN_ADDRESS = 'https://bscscan.com/address/'
 
 function randomSalt() {
   const bytes = new Uint8Array(32)
@@ -175,7 +179,8 @@ export default function App() {
   }, [account, getContract, loadHandle])
 
   useEffect(() => {
-    if (page === 'profile') loadProfile()
+    // Also on 'home': the hero stat pills show the same profile numbers.
+    if (page === 'profile' || page === 'home') loadProfile()
   }, [page, loadProfile])
 
   const loadLeaderboard = useCallback(async () => {
@@ -220,7 +225,8 @@ export default function App() {
   }, [contractReady, loadHandle])
 
   useEffect(() => {
-    if (page === 'leaderboard') loadLeaderboard()
+    // Also on 'home': the Top 3 card reads the same leaderboard.
+    if (page === 'leaderboard' || page === 'home') loadLeaderboard()
   }, [page, loadLeaderboard])
 
   const loadStats = useCallback(async () => {
@@ -362,81 +368,153 @@ export default function App() {
     }
   }
 
+  // Share my streak — copies a short text to the clipboard. No transaction,
+  // no server call; only reads state already on screen.
+  const shareStreak = async () => {
+    const name = handle || (account ? `${account.slice(0, 6)}…${account.slice(-4)}` : 'SafeStreak')
+    const text = streak
+      ? `SafeStreak — ${name}: ${L('currentStreak')} ${streak.current}, ${L('bestStreak')} ${streak.best}, ${L('totalCorrect')} ${streak.totalCorrect}. ${L('tagline')} ${window.location.href}`
+      : `SafeStreak — ${L('tagline')} ${window.location.href}`
+    try {
+      await navigator.clipboard.writeText(text)
+      setStatus(L('shareCopied'))
+    } catch {
+      // Clipboard API unavailable (older in-app browsers): show the text so
+      // the user can copy it manually.
+      setStatus(text)
+    }
+  }
+
   return (
     <div>
       <header>
-        <strong>SafeStreak</strong>
-        <span className="muted">{L('tagline')}</span>
-        <nav style={{ marginLeft: 'auto' }}>
-          {PAGES.map((p) => (
-            <button key={p} className={page === p ? '' : 'secondary'} onClick={() => setPage(p)}>
-              {L('nav' + p[0].toUpperCase() + p.slice(1))}
-            </button>
-          ))}
-        </nav>
-        <label>
-          {L('language')}{' '}
-          <select value={lang} onChange={(e) => setLang(e.target.value)}>
+        <div className="logo">🔥 SafeStreak</div>
+        <div className="header-actions">
+          {account && (
+            <span className="wallet-chip" title={account}>
+              {handle || `${account.slice(0, 6)}…${account.slice(-4)}`}
+            </span>
+          )}
+          <select className="lang-toggle" value={lang} onChange={(e) => setLang(e.target.value)} aria-label={L('language')}>
             <option value="vi">Tiếng Việt</option>
             <option value="en">English</option>
           </select>
-        </label>
-        {account ? (
-          <span>
-            {L('connected')}: <code>{account.slice(0, 6)}…{account.slice(-4)}</code>{' '}
-            <button className="secondary" onClick={() => setAccount('')}>{L('disconnect')}</button>
-          </span>
-        ) : (
-          <button onClick={connect}>{L('connect')}</button>
-        )}
+          {account ? (
+            <button className="btn btn-secondary" onClick={() => setAccount('')}>{L('disconnect')}</button>
+          ) : (
+            <button className="btn" onClick={connect}>{L('connect')}</button>
+          )}
+        </div>
       </header>
+      <nav>
+        {PAGES.map((p) => (
+          <button key={p} type="button" className={page === p ? 'active' : ''} onClick={() => setPage(p)}>
+            {L('nav' + p[0].toUpperCase() + p.slice(1))}
+          </button>
+        ))}
+      </nav>
       <main>
-        <div className="banner">⚠️ {L('warning')}</div>
-        {!contractReady && <p className="warn">{L('contractNotDeployed')}</p>}
-        {providerError && <p className="warn">{providerError}</p>}
-        {status && <p><code>{status}</code></p>}
+        <div className="warning">⚠️ {L('warning')}</div>
+        {!contractReady && <div className="warning">{L('contractNotDeployed')}</div>}
+        {providerError && <div className="error-box">{providerError}</div>}
+        {status && <div className="notice"><code>{status}</code></div>}
 
         {page === 'home' && (
-          <div className="card">
-            <h1>SafeStreak</h1>
-            <p>{L('tagline')}</p>
-            <h2>{L('howItWorks')}</h2>
-            <p>{L('how1')}</p>
-            <p>{L('how2')}</p>
-            <p>{L('how3')}</p>
-            <p>{L('how4')}</p>
-            <p className="muted">Final snapshot: {SNAPSHOT}. Agent ID: <code>{AGENT_ID_ADDRESS}</code></p>
-            {VERIFIER_URL && <p className="muted">Verifier: <code>{VERIFIER_URL}</code></p>}
-          </div>
+          <>
+            <div className="hero-wrap">
+              <div className="hero-left">
+                <h1>SafeStreak</h1>
+                <p className="hero-sub">{L('tagline')}</p>
+                <div className="stat-pills">
+                  <span className="pill"><span className="dot" />{L('currentStreak')}: <strong>&nbsp;{streak ? streak.current : '—'}</strong></span>
+                  <span className="pill">{L('points')}: <strong>&nbsp;{streak ? streak.points : '—'}</strong></span>
+                  <span className="pill">{L('bestStreak')}: <strong>&nbsp;{streak ? streak.best : '—'}</strong></span>
+                </div>
+                <p className="countdown-pill">{L('countdown')}: <span className="countdown">{countdown}</span></p>
+                <p><button className="btn btn-big" onClick={() => setPage('challenge')}>{L('goChallenge')}</button></p>
+                <p className="proof-line">{L('onChainProof')}: {SAFESTREAK_ADDRESS && <><a href={BSCSCAN_ADDRESS + SAFESTREAK_ADDRESS} target="_blank" rel="noopener">SafeStreak</a> · </>}<a href={BSCSCAN_ADDRESS + BADGE_ADDRESS} target="_blank" rel="noopener">Badge</a></p>
+              </div>
+              <div className="hero-right">
+                <div className="card agent-id-panel">
+                  <div className="agent-id-card" aria-hidden="true">
+                    <div className="agent-id-top"><span>SAFESTREAK</span><span>AGENT ID</span></div>
+                    <div className="agent-id-name">{handle || 'SafeStreak'}</div>
+                    <div className="agent-id-foot"><span>{account ? `${account.slice(0, 6)}…${account.slice(-4)}` : '27/11 – 06/12/2026'}</span><span>BNB CHAIN</span></div>
+                  </div>
+                  <h2>{L('yourStreak')}</h2>
+                  <p className="muted">
+                    {streak
+                      ? `${L('currentStreak')}: ${streak.current} · ${L('bestStreak')}: ${streak.best} · ${L('totalCorrect')}: ${streak.totalCorrect}`
+                      : L('tagline')}
+                  </p>
+                  {account ? (
+                    <p><button className="btn btn-big" onClick={() => setPage('challenge')}>{L('goChallenge')}</button></p>
+                  ) : (
+                    <p><button className="btn btn-big" onClick={connect}>{L('connect')}</button></p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="card">
+              <h2>{L('howItWorks')}</h2>
+              <ol className="steps">
+                {[L('how1'), L('how2'), L('how3')].map((s, i) => (
+                  <li key={i}>{s.replace(/^\d+\.\s*/, '')}</li>
+                ))}
+              </ol>
+              <p className="muted" style={{ marginTop: 14 }}>{L('how4')}</p>
+              <p className="muted">Final snapshot: {SNAPSHOT}. Agent ID: <code>{AGENT_ID_ADDRESS}</code></p>
+              {VERIFIER_URL && <p className="muted">Verifier: <code>{VERIFIER_URL}</code></p>}
+            </div>
+
+            <div className="card">
+              <h2>{L('top3Title')}</h2>
+              {leaderboard.length === 0 ? <p className="muted">{L('noHistory')}</p> : (
+                <ol className="history-list">
+                  {leaderboard.slice(0, 3).map((r, i) => (
+                    <li key={r.address}>{['🥇', '🥈', '🥉'][i]} {r.handle || r.address.slice(0, 6) + '…' + r.address.slice(-4)} — {r.points} {L('points')} · {L('bestStreak')} {r.best}</li>
+                  ))}
+                </ol>
+              )}
+              <p><button className="linklike" type="button" onClick={() => setPage('leaderboard')}>{L('viewAll')}</button></p>
+            </div>
+          </>
         )}
 
         {page === 'challenge' && (
           <div className="card">
             <h2>{L('todaysChallenge')}</h2>
-            <p>{L('countdown')}: <strong>{countdown}</strong></p>
+            <p className="countdown-pill">{L('countdown')}: <span className="countdown">{countdown}</span></p>
             {!today ? (
               <p className="muted">{L('noChallenge')}</p>
             ) : (
               <>
-                <p><strong>{today.question}</strong></p>
+                <p className="question-text"><strong>{today.question[lang] || today.question.en}</strong></p>
+                <p className="muted">{L('pickAnswer')}</p>
                 {Object.entries(today.options).map(([k, v]) => (
-                  <label key={k} style={{ display: 'block', margin: '6px 0' }}>
-                    <input type="radio" name="answer" checked={answer === k} onChange={() => setAnswer(k)} /> {k}. {v}
+                  <label key={k} className={'option' + (answer === k ? ' selected' : '')}>
+                    <input type="radio" name="answer" checked={answer === k} onChange={() => setAnswer(k)} />
+                    <span className="opt-letter">{k}.</span>
+                    <span>{v[lang] || v.en}</span>
                   </label>
                 ))}
                 <p>
-                  <button disabled={!answer || !account || !contractReady} onClick={doCommit}>{L('commit')}</button>{' '}
-                  <button disabled={!answer || !salt || !account || !contractReady} onClick={doReveal}>{L('reveal')}</button>
+                  <button className="btn" disabled={!answer || !account || !contractReady} onClick={doCommit}>{L('commit')}</button>{' '}
+                  <button className="btn btn-secondary" disabled={!answer || !salt || !account || !contractReady} onClick={doReveal}>{L('reveal')}</button>
                 </p>
-                <p className="muted">{L('revealNote')}</p>
-                {salt && <p>{L('saltLabel')}: <code>{salt}</code></p>}
-                {hash && <p>{L('commitHash')}: <code>{hash}</code></p>}
+                <div className="warning">{L('revealNote')}</div>
+                {salt && <pre className="prompt-box">{L('saltLabel')}: {salt}</pre>}
+                {hash && <pre className="prompt-box">{L('commitHash')}: {hash}</pre>}
               </>
             )}
             {streak && (
-              <p>
-                {L('currentStreak')}: {streak.current} · {L('bestStreak')}: {streak.best} · {L('totalCorrect')}: {streak.totalCorrect} · {L('points')}: {streak.totalCorrect}
-              </p>
+              <div className="stat-pills" style={{ marginTop: 16 }}>
+                <span className="pill">{L('currentStreak')}: <strong>&nbsp;{streak.current}</strong></span>
+                <span className="pill">{L('bestStreak')}: <strong>&nbsp;{streak.best}</strong></span>
+                <span className="pill">{L('totalCorrect')}: <strong>&nbsp;{streak.totalCorrect}</strong></span>
+                <span className="pill">{L('points')}: <strong>&nbsp;{streak.totalCorrect}</strong></span>
+              </div>
             )}
           </div>
         )}
@@ -444,24 +522,38 @@ export default function App() {
         {page === 'profile' && (
           <div className="card">
             <h2>{L('navProfile')}</h2>
-            {!account && <p>{L('connect')}</p>}
+            {!account && <p><button className="btn" onClick={connect}>{L('connect')}</button></p>}
             {account && (
               <>
                 <p>Wallet: <code>{account}</code></p>
                 {handle && <p>.ai name: <strong>{handle}</strong></p>}
                 {streak && (
                   <>
-                    <p>{L('currentStreak')}: {streak.current}</p>
-                    <p>{L('bestStreak')}: {streak.best}</p>
-                    <p>{L('totalCorrect')}: {streak.totalCorrect}</p>
-                    <p>{L('points')}: {streak.totalCorrect}</p>
-                    <p>{L('badges')}: {badgesFor(streak.best).join(', ') || '—'}</p>
+                    <div className="score-hero">
+                      <div className="score-hero-label">{L('currentStreak')}</div>
+                      <div className="score-hero-value">{streak.current}</div>
+                      <div className="score-hero-sub">{L('bestStreak')}: {streak.best} · {L('totalCorrect')}: {streak.totalCorrect}</div>
+                    </div>
+                    <div className="stat-grid">
+                      <div className="stat"><div className="num">{streak.best}</div><div className="lbl">{L('bestStreak')}</div></div>
+                      <div className="stat"><div className="num">{streak.totalCorrect}</div><div className="lbl">{L('totalCorrect')}</div></div>
+                      <div className="stat"><div className="num">{streak.points}</div><div className="lbl">{L('points')}</div></div>
+                    </div>
+                    <p style={{ marginTop: 14 }}>{L('badges')}: {badgesFor(streak.best).length > 0
+                      ? badgesFor(streak.best).map((b) => <span key={b} className="badge-tier badge-gold">{b}</span>)
+                      : '—'}</p>
+                    <p>
+                      <button className="btn btn-secondary" onClick={shareStreak}>{L('shareStreak')}</button>
+                    </p>
                   </>
                 )}
                 <h3>{L('history')}</h3>
                 {history.length === 0 ? <p className="muted">{L('noHistory')}</p> : (
-                  <ul>{history.map((h, i) => <li key={i}>#{h.dayId} — {h.correct ? '✓' : '✗'} — <code>{h.tx.slice(0, 18)}…</code></li>)}</ul>
+                  <ul className="history-list">{history.map((h, i) => <li key={i}>#{h.dayId} — {h.correct ? '✓' : '✗'} — <code>{h.tx.slice(0, 18)}…</code></li>)}</ul>
                 )}
+                <h3>{L('onChainProof')}</h3>
+                {SAFESTREAK_ADDRESS && <p className="proof-line">SafeStreak: <a href={BSCSCAN_ADDRESS + SAFESTREAK_ADDRESS} target="_blank" rel="noopener">{SAFESTREAK_ADDRESS}</a></p>}
+                <p className="proof-line">Badge: <a href={BSCSCAN_ADDRESS + BADGE_ADDRESS} target="_blank" rel="noopener">{BADGE_ADDRESS}</a></p>
               </>
             )}
           </div>
@@ -477,7 +569,7 @@ export default function App() {
                 <thead><tr><th>#</th><th>Name</th><th>{L('points')}</th><th>{L('bestStreak')}</th></tr></thead>
                 <tbody>
                   {leaderboard.map((r, i) => (
-                    <tr key={r.address}><td>{i + 1}</td><td>{r.handle || r.address.slice(0, 6) + '…' + r.address.slice(-4)}</td><td>{r.points}</td><td>{r.best}</td></tr>
+                    <tr key={r.address}><td>{i < 3 ? ['🥇', '🥈', '🥉'][i] : i + 1}</td><td>{r.handle || r.address.slice(0, 6) + '…' + r.address.slice(-4)}</td><td>{r.points}</td><td>{r.best}</td></tr>
                   ))}
                 </tbody>
               </table>
@@ -492,7 +584,7 @@ export default function App() {
             <p>Accepted tokens: {ACCEPTED_TOKEN_SYMBOLS.join(', ')}</p>
             <p>
               <input placeholder={L('addToken')} value={customToken} onChange={(e) => setCustomToken(e.target.value)} size={44} />{' '}
-              <button disabled={!account || checking} onClick={checkAllowances}>{L('check')}</button>
+              <button className="btn" disabled={!account || checking} onClick={checkAllowances}>{L('check')}</button>
             </p>
             {allowances.length > 0 && (
               <table>
@@ -504,11 +596,11 @@ export default function App() {
                       <td><code>{r.spender.slice(0, 10)}…</code></td>
                       <td><code>{r.allowance}</code></td>
                       <td>
-                        {r.unlimited && <span className="warn">{L('unlimited')} </span>}
-                        {r.unverifiedSpender && <span className="warn">{L('unverifiedSpender')} </span>}
-                        {r.oldApproval !== null && <span className="muted">{L('oldApproval')} #{r.oldApproval}</span>}
+                        {r.unlimited && <span className="flag flag-risk">{L('unlimited')} </span>}
+                        {r.unverifiedSpender && <span className="flag flag-risk">{L('unverifiedSpender')} </span>}
+                        {r.oldApproval !== null && <span className="flag flag-warn">{L('oldApproval')} #{r.oldApproval}</span>}
                       </td>
-                      <td><button disabled={!account} onClick={() => revoke(r)}>{L('revoke')}</button></td>
+                      <td><button className="btn btn-small" disabled={!account} onClick={() => revoke(r)}>{L('revoke')}</button></td>
                     </tr>
                   ))}
                 </tbody>
@@ -523,16 +615,24 @@ export default function App() {
             <p className="muted">{L('statsNote')}</p>
             {!stats ? <p className="muted">{L('noHistory')}</p> : (
               <>
-                <p>{L('uniqueAgentIds')}: <strong>{stats.uniqueAgentIds}</strong></p>
+                <div className="stat-grid">
+                  <div className="stat"><div className="num">{stats.uniqueAgentIds}</div><div className="lbl">{L('uniqueAgentIds')}</div></div>
+                  <div className="stat"><div className="num">{stats.byType.Committed}</div><div className="lbl">Committed</div></div>
+                  <div className="stat"><div className="num">{stats.byType.Revealed}</div><div className="lbl">Revealed</div></div>
+                  <div className="stat"><div className="num">{stats.byType.Attested}</div><div className="lbl">Attested</div></div>
+                </div>
                 <h3>{L('txByType')}</h3>
-                <ul>{Object.entries(stats.byType).map(([k, v]) => <li key={k}>{k}: {v}</li>)}</ul>
+                <ul className="history-list">{Object.entries(stats.byType).map(([k, v]) => <li key={k}>{k}: {v}</li>)}</ul>
                 <h3>{L('txByDay')}</h3>
-                <ul>{Object.entries(stats.byDay).map(([k, v]) => <li key={k}>{k}: {v}</li>)}</ul>
+                <ul className="history-list">{Object.entries(stats.byDay).map(([k, v]) => <li key={k}>{k}: {v}</li>)}</ul>
               </>
             )}
           </div>
         )}
       </main>
+      <footer>
+        <p>SafeStreak — {L('tagline')} Final snapshot: {SNAPSHOT}. Agent ID: <code>{AGENT_ID_ADDRESS}</code>{VERIFIER_URL && <> · Verifier: <code>{VERIFIER_URL}</code></>}</p>
+      </footer>
     </div>
   )
 }

@@ -5,6 +5,12 @@
 export const STRINGS = {
   en: {
     tagline: 'Learn. Streak. Stay safe.',
+    onChainProof: 'On-chain proof',
+    shareStreak: 'Share my streak',
+    shareCopied: 'Copied — paste it on Square/X to share your streak!',
+    top3Title: 'Top 3 leaderboard',
+    viewAll: 'View all →',
+    goChallenge: 'Take today’s challenge',
     warning:
       'Educational content only — not financial advice. No financial reward. SafeStreak is a learning challenge for Agent ID holders.',
     navHome: 'Home',
@@ -62,6 +68,12 @@ export const STRINGS = {
   },
   vi: {
     tagline: 'Học. Chuỗi đúng. An toàn.',
+    onChainProof: 'Bằng chứng on-chain',
+    shareStreak: 'Chia sẻ chuỗi của tôi',
+    shareCopied: 'Đã sao chép — dán vào Square/X để chia sẻ chuỗi của bạn!',
+    top3Title: 'Top 3 bảng xếp hạng',
+    viewAll: 'Xem tất cả →',
+    goChallenge: 'Làm thử thách hôm nay',
     warning:
       'Nội dung giáo dục — không phải lời khuyên tài chính. Không có phần thưởng tài chính. SafeStreak là thử thách học tập dành cho người sở hữu Agent ID.',
     navHome: 'Trang chủ',

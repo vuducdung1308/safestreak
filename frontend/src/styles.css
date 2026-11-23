@@ -1,16 +1,440 @@
-body { font-family: system-ui, -apple-system, sans-serif; margin: 0; background: #0b0f14; color: #e8eef4; }
-a { color: #f0b90b; }
-header { padding: 16px; border-bottom: 1px solid #223; display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
-nav button { margin-right: 8px; }
-button { background: #f0b90b; color: #111; border: 0; border-radius: 8px; padding: 8px 14px; cursor: pointer; font-weight: 600; }
-button:disabled { opacity: 0.5; cursor: not-allowed; }
-button.secondary { background: #223; color: #e8eef4; }
-main { max-width: 860px; margin: 0 auto; padding: 20px; }
-.banner { background: #3a2f00; border: 1px solid #f0b90b; border-radius: 10px; padding: 12px 16px; margin-bottom: 20px; }
-.card { background: #141b24; border: 1px solid #223; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
-.warn { color: #ffb020; }
-.muted { color: #9fb0c0; }
-input, select { padding: 8px; border-radius: 8px; border: 1px solid #335; background: #0f1620; color: #e8eef4; }
-table { border-collapse: collapse; width: 100%; }
-th, td { border-bottom: 1px solid #223; padding: 8px; text-align: left; }
+/* SafeStreak — visual system borrowed from AgentAllowance (StillAlive /
+ * neo-brutalist): flat yellow background, white header, Baloo 2 headings,
+ * white cards with black border + hard shadow. No framework, no build step
+ * beyond Vite. Only the look changed — all contract logic lives in App.jsx. */
+* { box-sizing: border-box; }
+
+:root {
+  --yellow: #ffc531;
+  --yellow-deep: #f5b301;
+  --navy: #1b2a4a;
+  --teal: #0e7c6b;
+  --ink: #111111;
+  --muted: #4d4d4d;
+  --card: #ffffff;
+  --green: #22c55e;
+  --green-dark: #16a34a;
+  --red: #d93025;
+  --amber: #b26a00;
+  --border: #111111;
+  --radius: 20px;
+  --shadow: 6px 6px 0 #111111;
+  --shadow-sm: 3px 3px 0 #111111;
+}
+
+body {
+  margin: 0;
+  font-family: "Nunito", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--ink);
+  background: var(--yellow);
+  min-height: 100vh;
+}
+
+h1, h2, h3, .logo, .btn, nav button, .pill, .countdown-pill {
+  font-family: "Baloo 2", "Nunito", system-ui, sans-serif;
+}
+
+a { color: #0b5fff; }
+button { font-family: inherit; cursor: pointer; }
+
+/* ---------- Header: white bar, black bottom border ---------- */
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 20px;
+  background: #fff;
+  border-bottom: 3px solid var(--ink);
+}
+
+.logo { font-size: 24px; font-weight: 800; letter-spacing: -0.3px; white-space: nowrap; }
+
+.header-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+
+.btn {
+  display: inline-block;
+  text-decoration: none;
+  border: 2px solid var(--ink);
+  border-radius: 12px;
+  padding: 10px 18px;
+  font-size: 15px;
+  font-weight: 800;
+  background: var(--yellow);
+  color: var(--ink);
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.08s ease, box-shadow 0.08s ease;
+}
+.btn:hover { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink); }
+.btn:active { transform: translate(3px, 3px); box-shadow: 0 0 0 var(--ink); }
+.btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+
+.btn-black { background: var(--ink); color: #fff; }
+.btn-black:hover { background: #2a2a2a; }
+
+.btn-big {
+  display: block;
+  text-align: center;
+  padding: 14px 18px;
+  font-size: 17px;
+}
+
+.btn-secondary {
+  background: #fff;
+  color: var(--ink);
+}
+.btn-secondary:hover { background: #f5f5f5; }
+
+.btn-small { padding: 7px 12px; font-size: 14px; border-radius: 10px; }
+
+.lang-toggle {
+  border: 2px solid var(--ink);
+  background: #fff;
+  border-radius: 999px;
+  padding: 7px 12px;
+  font-weight: 800;
+  font-size: 14px;
+  box-shadow: var(--shadow-sm);
+}
+.lang-toggle:hover { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink); }
+
+.wallet-chip {
+  background: #fff;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  padding: 7px 12px;
+  font-size: 14px;
+  font-weight: 700;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  box-shadow: var(--shadow-sm);
+}
+
+nav {
+  display: flex;
+  gap: 10px;
+  padding: 16px 20px 4px;
+  max-width: 1080px;
+  margin: 0 auto;
+  flex-wrap: wrap;
+}
+nav button {
+  border: 2px solid var(--ink);
+  background: #fff;
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--ink);
+  box-shadow: var(--shadow-sm);
+}
+nav button:hover { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink); }
+nav button.active { background: var(--ink); color: #fff; }
+
+main { max-width: 1080px; margin: 0 auto; padding: 0 20px 40px; }
+
+.card {
+  background: var(--card);
+  border: 2px solid var(--ink);
+  border-radius: var(--radius);
+  padding: 22px;
+  margin-bottom: 18px;
+  box-shadow: var(--shadow);
+}
+
+/* ---------- Hero: 2 columns ---------- */
+.hero-wrap {
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: 24px;
+  align-items: start;
+  margin: 18px 0;
+}
+.hero-left { padding-top: 8px; }
+.hero-left h1 {
+  font-size: 46px;
+  line-height: 1.05;
+  margin: 0 0 14px;
+  letter-spacing: -0.5px;
+}
+.hero-sub { font-size: 17px; line-height: 1.55; color: #262626; margin: 0 0 18px; }
+
+.stat-pills { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+.pill {
+  display: inline-flex;
+  align-items: center;
+  background: #fff;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 15px;
+  font-weight: 700;
+  box-shadow: var(--shadow-sm);
+}
+.pill strong { font-weight: 800; }
+.pill .dot {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--green);
+  margin-right: 7px;
+  flex: none;
+}
+
+.countdown-pill {
+  display: inline-block;
+  background: var(--ink);
+  color: #fff;
+  border-radius: 999px;
+  padding: 10px 18px;
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0 0 18px;
+}
+.countdown-pill .countdown { color: var(--yellow); font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; }
+
+/* Gold streak card on the right of the hero (AgentAllowance Agent ID card). */
+.agent-id-panel { text-align: center; margin-bottom: 0; }
+.agent-id-panel h2 { font-size: 26px; margin: 14px 0 6px; }
+.agent-id-panel p { margin: 8px 0; }
+.agent-id-panel .muted { font-size: 15px; line-height: 1.5; }
+
+.agent-id-card {
+  width: 260px;
+  height: 330px;
+  margin: 6px auto 4px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  text-align: left;
+  background: linear-gradient(150deg, #fbd84a 0%, #f0b90b 55%, #d99a06 100%);
+  border: 2px solid var(--ink);
+  border-radius: 16px;
+  box-shadow: 8px 8px 0 rgba(17, 17, 17, 0.9);
+  transform: rotate(-2deg);
+  color: #1a1400;
+}
+.agent-id-top {
+  display: flex; justify-content: space-between;
+  font-size: 11px; font-weight: 800; letter-spacing: 1px;
+}
+.agent-id-name {
+  font-family: "Baloo 2", "Nunito", sans-serif;
+  font-size: 34px; font-weight: 800; letter-spacing: -0.5px;
+  word-break: break-word;
+}
+.agent-id-foot {
+  display: flex; justify-content: space-between;
+  font-size: 12px; font-weight: 800;
+}
+
+.linklike {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.linklike:hover { color: #000; }
+
+h2 { font-size: 24px; margin: 0 0 12px; letter-spacing: -0.3px; }
+h3 { font-size: 19px; margin: 18px 0 8px; }
+
+/* Big streak hero (OPN-style score hero): big number at the top of Profile. */
+.score-hero {
+  background: #fff;
+  border: 2px solid var(--ink);
+  border-radius: 14px;
+  box-shadow: var(--shadow-sm);
+  padding: 16px;
+  text-align: center;
+  margin: 12px 0;
+}
+.score-hero-label { font-size: 14px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.score-hero-value { font-family: "Baloo 2", system-ui, sans-serif; font-size: 56px; font-weight: 800; line-height: 1.05; }
+.score-hero-sub { font-size: 14px; color: var(--muted); margin-top: 2px; }
+
+.badge-tier {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-weight: 800;
+  font-size: 14px;
+  margin: 3px 4px 3px 0;
+  border: 2px solid var(--ink);
+}
+.badge-gold { background: #fff3c4; color: #8a6d00; }
+
+/* On-chain proof: short contract addresses, BscScan links. */
+.proof-line { font-size: 15px; word-break: break-all; }
+.proof-line a { color: var(--ink); font-weight: 700; }
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+.stat {
+  background: #fff;
+  border: 2px solid var(--ink);
+  border-radius: var(--radius);
+  padding: 16px;
+  text-align: center;
+  box-shadow: var(--shadow-sm);
+}
+.stat .num { font-size: 28px; font-weight: 800; }
+.stat .lbl { font-size: 13px; color: var(--muted); font-weight: 700; }
+
+.steps {
+  counter-reset: step;
+  padding-left: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin: 0;
+}
+.steps li {
+  position: relative;
+  background: #fff8e1;
+  border: 2px solid var(--ink);
+  border-radius: 16px;
+  padding: 16px;
+  padding-top: 44px;
+  font-size: 15px;
+  line-height: 1.5;
+  box-shadow: var(--shadow-sm);
+}
+.steps li::before {
+  counter-increment: step;
+  content: counter(step);
+  position: absolute; left: 14px; top: 12px;
+  width: 26px; height: 26px; border-radius: 50%;
+  background: var(--ink); color: #fff;
+  font-size: 14px; font-weight: 800;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* Challenge answer options: selectable cards. */
+.option {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #fff;
+  border: 2px solid var(--ink);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin: 8px 0;
+  font-size: 15px;
+  line-height: 1.5;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+}
+.option:hover { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink); }
+.option.selected { background: #fff3c4; }
+.option input[type="radio"] { accent-color: var(--ink); margin-top: 3px; flex: none; }
+.option .opt-letter { font-weight: 800; flex: none; }
+
+.question-text { font-size: 19px; line-height: 1.55; margin: 12px 0; }
+
+/* Salt / commit hash: dark mono block (AgentAllowance prompt-box). */
+.prompt-box {
+  background: #111;
+  color: #f5f5f5;
+  border: 2px solid var(--ink);
+  border-radius: 12px;
+  padding: 16px;
+  font-size: 13px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 420px;
+  overflow-y: auto;
+  margin: 12px 0 0;
+  font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+}
+
+.warning {
+  background: #fff8e1;
+  border: 2px solid var(--ink);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 14px;
+  color: #5c4a00;
+  margin-bottom: 18px;
+}
+
+.notice {
+  background: #eef4ff;
+  border: 2px solid #1a3a6b;
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 14px;
+  color: #1a3a6b;
+  margin-bottom: 12px;
+  word-break: break-all;
+}
+
+.error-box {
+  background: #fdecea;
+  border: 2px solid var(--red);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 14px;
+  color: #7a1f1a;
+  margin-bottom: 12px;
+}
+
+.flag {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 800;
+  margin: 3px 4px 3px 0;
+}
+.flag-risk { background: #fdecea; color: var(--red); }
+.flag-warn { background: #fff3c4; color: var(--amber); }
+.flag-ok { background: #e6f7e6; color: #2e7d32; }
+
+table { width: 100%; border-collapse: collapse; font-size: 15px; }
+th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid #d9d9d9; }
+th { color: var(--muted); font-size: 13px; }
+td .addr-short { font-family: monospace; }
+
+.muted { color: var(--muted); font-size: 14px; }
+.history-list { list-style: none; padding: 0; margin: 0; }
+.history-list li { padding: 8px 0; border-bottom: 1px solid #d9d9d9; font-size: 15px; }
+
+input, select {
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 2px solid var(--ink);
+  background: #fff;
+  color: var(--ink);
+  font-size: 15px;
+  font-family: inherit;
+}
+input:focus, select:focus { outline: 3px solid var(--yellow-deep); outline-offset: 1px; }
+
 code { word-break: break-all; }
+
+footer { max-width: 1080px; margin: 0 auto; padding: 0 20px 32px; color: rgba(17, 17, 17, 0.75); font-size: 13px; }
+
+/* Responsive for phone screens (used inside the Binance App). */
+@media (max-width: 760px) {
+  .hero-wrap { grid-template-columns: 1fr; }
+  .hero-left h1 { font-size: 32px; }
+  .steps { grid-template-columns: 1fr; }
+  .stat-grid { grid-template-columns: 1fr; }
+  .score-hero-value { font-size: 44px; }
+  header { flex-wrap: wrap; }
+  .wallet-chip { max-width: 140px; }
+  table { font-size: 14px; }
+  .card { padding: 16px; }
+  .agent-id-card { width: 230px; height: 300px; }
+}
