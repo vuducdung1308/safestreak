@@ -20,6 +20,18 @@ export const STRINGS = {
     navApprovals: 'Approval Health Check',
     navStats: 'Stats',
     connect: 'Connect wallet (Binance App dApp browser)',
+    agenticNote:
+      'The Agentic Wallet cannot log in to the web — use Binance AI or Claude Code, see “Use Agentic AI” below.',
+    aiTitle: '🤖 Use Agentic AI',
+    aiDesc:
+      'No wallet browser login needed — your agent plays the daily challenge, checks approvals and attests on-chain with your Agentic Wallet, with on-chain proof.',
+    aiStep1: 'Copy the prompt below.',
+    aiStep2: 'Open Binance App → AI Pro (or an AI agent already connected to your Agentic Wallet) and paste the prompt.',
+    aiStep3: 'Send it once — the agent commits and reveals your answer, checks approvals, attests on-chain and reports back.',
+    copyPrompt: 'Copy prompt',
+    promptCopied: 'Prompt copied — paste it into Binance AI or Claude Code.',
+    copyManually: 'Copy failed — please select the prompt text below and copy it manually.',
+    loadFailed: "Couldn't load on-chain data, please try again later.",
     noProvider:
       'No injected wallet found. Please open this app inside the Binance App dApp browser with an injected EIP-1193 provider (window.ethereum). SafeStreak does not use WalletConnect or QR pairing.',
     connected: 'Connected',
@@ -83,6 +95,18 @@ export const STRINGS = {
     navApprovals: 'Kiểm tra Approval',
     navStats: 'Thống kê',
     connect: 'Kết nối ví (trình duyệt dApp trong app Binance)',
+    agenticNote:
+      'Ví Agentic không đăng nhập web được — dùng Binance AI hoặc Claude Code, xem mục “Dùng Agentic AI” bên dưới.',
+    aiTitle: '🤖 Dùng Agentic AI',
+    aiDesc:
+      'Không cần đăng nhập ví trên trình duyệt — agent của bạn tự chơi thử thách hằng ngày, kiểm tra approval và xác nhận điểm on-chain bằng ví Agentic, có bằng chứng on-chain.',
+    aiStep1: 'Sao chép prompt bên dưới.',
+    aiStep2: 'Mở Binance App → AI Pro (hoặc AI agent đã kết nối ví Agentic) rồi dán prompt vào.',
+    aiStep3: 'Gửi 1 lần — agent commit và reveal đáp án, kiểm tra approval, xác nhận on-chain rồi báo lại cho bạn.',
+    copyPrompt: 'Sao chép prompt',
+    promptCopied: 'Đã sao chép prompt — dán vào Binance AI hoặc Claude Code.',
+    copyManually: 'Sao chép thất bại — hãy chọn thủ công đoạn prompt bên dưới rồi sao chép.',
+    loadFailed: 'Không tải được dữ liệu on-chain, vui lòng thử lại sau.',
     noProvider:
       'Không tìm thấy ví injected. Vui lòng mở app này trong trình duyệt dApp của app Binance với provider EIP-1193 (window.ethereum). SafeStreak không dùng WalletConnect hay ghép nối bằng QR.',
     connected: 'Đã kết nối',
