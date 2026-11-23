@@ -35,6 +35,66 @@ const VERIFIER_URL = import.meta.env.VITE_VERIFIER_URL || ''
 // links (BscScan) in the UI. Never used in any transaction here.
 const BADGE_ADDRESS = '0xF1bC1504Dc3fF3A8039226961B4915890bcDBB4A'
 const BSCSCAN_ADDRESS = 'https://bscscan.com/address/'
+// Deploy block of the SafeStreak contract (BNB mainnet, verified on-chain).
+// ALL on-chain log queries start here — never from block 0: the public RPC
+// rate-limits (and rejects) wide eth_getLogs ranges.
+const DEPLOY_BLOCK = 134663434
+
+// Copy-paste prompt for the Binance AI agent / Claude Code driving the user's
+// own Agentic Wallet. English only (the AI reads English); the surrounding
+// card copy lives in i18n.js. Keep the placeholder YOUR_WALLET_ADDRESS — the
+// user replaces it with their Agentic Wallet address.
+const AGENT_PROMPT = `TASK: Play SafeStreak with my Binance Agentic Wallet — answer the daily challenge on-chain, check my token approvals, and attest revocations on-chain.
+
+You are helping me with MY OWN Agentic Wallet on BNB Smart Chain (chain ID 56). My wallet holds a Binance Agent ID. Only ever act on MY wallet — never look up or act on anyone else's wallet.
+
+IMPORTANT — the Agentic Wallet cannot log in to any web app: the Binance App's dApp browser only exposes the keyless wallet, so the Agentic Wallet cannot connect to https://vuducdung1308.github.io/safestreak/. You must complete every on-chain call below yourself, from my wallet. Do NOT send me to the web app to commit, reveal or attest with the Agentic Wallet.
+
+1. TODAY'S CHALLENGE — commit, then reveal:
+   - Today is dayId = floor(current Unix timestamp / 86400). The run is 27/11/2026-06/12/2026, dayIds 20784 (Q01) to 20793 (Q10). If today is outside that range, do nothing and tell me.
+   - Get today's question from https://raw.githubusercontent.com/vuducdung1308/safestreak/main/questions/questions.json (Q01 = day 20784, Q02 = 20785, ... Q10 = 20793). Verify it against the contract: call getChallenge(dayId) on SafeStreak 0xA1D5E01B04B6c8d398219bc84F5b2f28e295b28F and confirm the contentHash matches the question (hash method in the repo's questions/hash.mjs).
+   - Show me the question and its 4 options A/B/C/D, then ask me to pick ONE answer. Do not pick an answer for me.
+   - Generate a fresh random 32-byte salt. Save it in a local file named safestreak-salt-<dayId>.json — never share it, never send it anywhere. Compute commitHash = keccak256(abi.encodePacked(dayId, answer, salt, myWalletAddress)).
+   - Show me the exact transaction first, get my explicit approval, then call commit(uint256 dayId, bytes32 commitHash) on the SafeStreak contract (selector 0xf2f03877) FROM my wallet (from = YOUR_WALLET_ADDRESS). Report the commit transaction hash.
+   - THE NEXT DAY, after the publisher has revealed the answer (check getChallenge(dayId).answerRevealedAt != 0 first), call reveal(uint256 dayId, string answer, bytes32 salt) (selector 0xae416c4b) with the SAME answer letter and SAME salt from the local file, FROM my wallet. Reveal within 36 hours of the publisher's reveal or it expires. Report whether my answer was correct, my points and streak from profile(myWalletAddress), and the reveal transaction hash.
+   - One commit per UTC day, never two. If I miss a day, do NOT commit twice the next day.
+2. APPROVAL HEALTH CHECK + ATTEST — scan, revoke, attest:
+   - Scan MY wallet's ERC-20 approvals on BNB Smart Chain for the 6 accepted tokens:
+     USDT 0x55d398326f99059fF775485246999027B3197955, USDC 0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d, WBNB 0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c, BTCB 0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c, ETH 0x2170Ed0880ac9A755fd29B2688956BD959F933F8, CAKE 0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82.
+     Read Approval events (owner = my wallet) for each token and the current allowance(owner, spender) for each spender. Report risky approvals (unlimited, or to an unverified spender), riskiest first.
+   - For each risky approval I approve, revoke it by calling approve(spender, 0) on the token contract FROM my wallet — and only after I explicitly approve that specific revoke. The only approval this task ever sends is approve(spender, 0). Never create an approval with a value above 0.
+   - After a revoke, attest it on-chain: POST https://safestreak-verifier.onrender.com/attest with JSON body {"user": "YOUR_WALLET_ADDRESS", "token": "<token>", "spender": "<spender>", "approvalBlock": <block number of the original Approval event with value > 0>, "revokeTxHash": "<revoke tx hash>"}. approvalBlock must be before the snapshot block 134663434. The verifier returns an EIP-712 signature (valid 15 minutes) plus nonce and deadline. Show me the exact attest transaction first, get my explicit approval, then call attest(address user, address token, address spender, uint64 approvalBlock, bytes32 revokeTxHash, uint256 nonce, uint64 deadline, bytes signature) on the SafeStreak contract (selector 0xd8c733ba) FROM my wallet, passing exactly the verifier's fields. Max 3 attestations per day. Report the transaction hash.
+3. LEADERBOARD — read profile(myWalletAddress) and the on-chain leaderboard (or GET https://safestreak-verifier.onrender.com/leaderboard) and tell me my points, my best correct streak, my rank, and the top 3 wallets.
+
+SIMULATION TROUBLESHOOTING — if a simulation reverts, do NOT stop there, check the simulation itself first:
+   (a) confirm it really used from = YOUR_WALLET_ADDRESS (some tools silently ignore "from" and simulate from their own address — commit, reveal and attest all require the sender to hold an Agent ID, otherwise they revert with NotAgentId 0xdfc3592e);
+   (b) for attest, confirm the signature is the FULL 65 bytes exactly as the verifier returned it — never truncated or retyped from a shortened display — and the calldata is selector 0xd8c733ba, then user, token, spender, approvalBlock, revokeTxHash, nonce, deadline, signature, in that order;
+   (c) confirm on-chain state: Agent ID balanceOf(my wallet) = 1 (Agent ID contract 0x60b9262456de011f7d15a54cdd8c48baaa8b022f); for commit, dayId == today and I have not committed already; for reveal, the publisher has revealed the answer and the 36-hour window has not expired; for attest, nonces(my wallet) equals the signature nonce, block.timestamp <= deadline, deadline <= now + 15 minutes, approvalBlock < 134663434, and the signature recovers to verifier 0x1Fc6e7764059B3206eD9D146d3F923233D6e3Be1.
+   A revert WITH a 4-byte error is meaningful — decode it and fix the cause (NotAgentId 0xdfc3592e, NotToday 0x5f2f180d, AlreadyCommitted 0xbfec5558, WrongCommitment 0xe2d3b1c0, AnswerNotRevealed 0x2bb778d7, RevealWindowExpired 0xde2199de, NotCommitted 0x81791cb4, NotUser 0x7aafae97, DeadlineExpired 0x1ab7da6b, DeadlineTooFar 0x48f0fae6, BadNonce 0x4bd574ec, BadSignature 0x5cd5d233, ApprovalAfterSnapshot 0x30301bb4, AlreadyAttested 0x35d90805, AttestationLimitReached 0xb00686dc, AllowanceNotZero 0xe953bbb8). A revert with EMPTY data (0x) while all checks above pass is a known simulation-tool issue, not proof the contract rejects the call: show me the full calldata and the checks, and ask me whether to proceed.
+
+SAFETY RULES — never break these:
+- Never ask me for a seed phrase, private key, password, API secret, or any login/pairing code. The Agentic Wallet is MPC/keyless; sign-in is only by QR pairing in the Binance App.
+- Never send, approve, or sign any transaction without showing me the exact details first and getting my explicit approval for that transaction.
+- Never move funds. Never call transfer or transferFrom. Never send BNB to any contract.
+- If you are unsure about an address or a transaction, stop and ask me instead of guessing.
+
+CONTRACTS (BNB Smart Chain, chain ID 56):
+- SafeStreak: 0xA1D5E01B04B6c8d398219bc84F5b2f28e295b28F
+- Badge: 0xF1bC1504Dc3fF3A8039226961B4915890bcDBB4A
+- Agent ID (ERC-721): 0x60b9262456de011f7d15a54cdd8c48baaa8b022f
+- Verifier: https://safestreak-verifier.onrender.com
+- Web app: https://vuducdung1308.github.io/safestreak/
+- Questions: https://raw.githubusercontent.com/vuducdung1308/safestreak/main/questions/questions.json
+- Source: the contract source is verified on BscScan (getsourcecode returns the full source). Do not conclude it is unverified from a Sourcify 404 — Sourcify removed its v1 API.`
+
+// Never render a raw ethers error in the UI: its message embeds the full
+// JSON-RPC error payload (that is the big blue box in the 23/11 screenshot).
+// Show a short reason; the detail goes to the console.
+function shortTxError(e) {
+  const msg = (e && (e.reason || e.shortMessage || e.message)) || String(e || '')
+  const firstLine = String(msg).split('\n')[0].trim()
+  return firstLine.length > 160 ? firstLine.slice(0, 157) + '…' : firstLine
+}
 
 function randomSalt() {
   const bytes = new Uint8Array(32)
@@ -120,7 +180,8 @@ export default function App() {
       const accounts = await provider.send('eth_requestAccounts', [])
       if (accounts && accounts[0]) setAccount(accounts[0])
     } catch (e) {
-      setStatus(e?.message || String(e))
+      console.error('connect failed:', e)
+      setStatus(shortTxError(e))
     }
   }, [L])
 
@@ -165,7 +226,7 @@ export default function App() {
       const provider = new BrowserProvider(window.ethereum)
       setHandle(await loadHandle(account, provider))
       const filter = c.filters.Revealed(account)
-      const events = await c.queryFilter(filter)
+      const events = await c.queryFilter(filter, DEPLOY_BLOCK)
       setHistory(
         events.map((e) => ({
           dayId: Number(e.args.dayId),
@@ -174,7 +235,8 @@ export default function App() {
         })),
       )
     } catch (e) {
-      setStatus(e?.message || String(e))
+      console.error('loadProfile failed:', e)
+      setStatus(L('loadFailed'))
     }
   }, [account, getContract, loadHandle])
 
@@ -192,12 +254,38 @@ export default function App() {
       setLeaderboard([])
       return
     }
+    // Verifier first: the public RPC rate-limits wide eth_getLogs ranges, so
+    // the verifier (log-capable RPC) serves the leaderboard. Fall back to
+    // direct on-chain reads when the verifier is unreachable.
+    if (VERIFIER_URL) {
+      try {
+        const res = await fetch(`${VERIFIER_URL}/leaderboard`)
+        if (res.ok) {
+          const data = await res.json()
+          if (Array.isArray(data.rows)) {
+            setLeaderboard(
+              data.rows.map((r) => ({
+                address: r.address,
+                points: Number(r.points) || 0,
+                totalCorrect: Number(r.totalCorrect) || 0,
+                best: Number(r.best) || 0,
+                handle: r.handle || '',
+              })),
+            )
+            return
+          }
+        }
+        console.error('verifier /leaderboard failed:', res.status)
+      } catch (e) {
+        console.error('verifier /leaderboard failed:', e)
+      }
+    }
     try {
       const provider = RPC_URL ? new ethers.JsonRpcProvider(RPC_URL) : new BrowserProvider(window.ethereum)
       const c = new Contract(SAFESTREAK_ADDRESS, abi, provider)
       const [revealed, streaks] = await Promise.all([
-        c.queryFilter(c.filters.Revealed()),
-        c.queryFilter(c.filters.StreakUpdated()),
+        c.queryFilter(c.filters.Revealed(), DEPLOY_BLOCK),
+        c.queryFilter(c.filters.StreakUpdated(), DEPLOY_BLOCK),
       ])
       const users = new Set([
         ...revealed.map((e) => e.args.user),
@@ -220,7 +308,9 @@ export default function App() {
       rows.sort((a, b) => b.points - a.points || b.best - a.best)
       setLeaderboard(rows)
     } catch (e) {
-      setStatus(e?.message || String(e))
+      // Total failure: show the empty state, never a raw error.
+      console.error('loadLeaderboard failed:', e)
+      setLeaderboard([])
     }
   }, [contractReady, loadHandle])
 
@@ -235,13 +325,30 @@ export default function App() {
       setStats(null)
       return
     }
+    // Verifier first (same reason as loadLeaderboard): the public RPC
+    // rate-limits wide eth_getLogs ranges.
+    if (VERIFIER_URL) {
+      try {
+        const res = await fetch(`${VERIFIER_URL}/stats`)
+        if (res.ok) {
+          const data = await res.json()
+          if (data && typeof data.uniqueAgentIds === 'number' && data.byType && data.byDay) {
+            setStats(data)
+            return
+          }
+        }
+        console.error('verifier /stats failed:', res.status)
+      } catch (e) {
+        console.error('verifier /stats failed:', e)
+      }
+    }
     try {
       const provider = RPC_URL ? new ethers.JsonRpcProvider(RPC_URL) : new BrowserProvider(window.ethereum)
       const c = new Contract(SAFESTREAK_ADDRESS, abi, provider)
       const [committed, revealed, attested] = await Promise.all([
-        c.queryFilter(c.filters.Committed()),
-        c.queryFilter(c.filters.Revealed()),
-        c.queryFilter(c.filters.Attested()),
+        c.queryFilter(c.filters.Committed(), DEPLOY_BLOCK),
+        c.queryFilter(c.filters.Revealed(), DEPLOY_BLOCK),
+        c.queryFilter(c.filters.Attested(), DEPLOY_BLOCK),
       ])
       const users = new Set([...revealed, ...committed].map((e) => e.args.user.toLowerCase()))
       const byDay = {}
@@ -256,7 +363,9 @@ export default function App() {
         byDay,
       })
     } catch (e) {
-      setStatus(e?.message || String(e))
+      // Total failure: show the empty state, never a raw error.
+      console.error('loadStats failed:', e)
+      setStats(null)
     }
   }, [contractReady])
 
@@ -281,7 +390,8 @@ export default function App() {
       await tx.wait()
       setStatus(`Commit confirmed: ${tx.hash}`)
     } catch (e) {
-      setStatus(e?.message || String(e))
+      console.error('commit failed:', e)
+      setStatus(shortTxError(e))
     }
   }
 
@@ -299,7 +409,8 @@ export default function App() {
       setStatus(`Reveal confirmed: ${tx.hash}`)
       loadProfile()
     } catch (e) {
-      setStatus(e?.message || String(e))
+      console.error('reveal failed:', e)
+      setStatus(shortTxError(e))
     }
   }
 
@@ -326,8 +437,10 @@ export default function App() {
           symbol = await token.symbol()
         } catch { /* keep address */ }
         // Spenders are discovered from Approval events for this owner+token.
+        // Logs start at the SafeStreak deploy block — never from block 0
+        // (the public RPC rate-limits wide eth_getLogs ranges).
         const filter = { address: addr, topics: [ethers.id('Approval(address,address,uint256)'), ethers.zeroPadValue(account, 32)] }
-        const logs = await provider.getLogs({ ...filter, fromBlock: 0 })
+        const logs = await provider.getLogs({ ...filter, fromBlock: DEPLOY_BLOCK })
         const spenders = [...new Set(logs.map((l) => ethers.getAddress('0x' + l.topics[2].slice(26))))]
         for (const spender of spenders) {
           const allowance = await token.allowance(account, spender)
@@ -348,7 +461,8 @@ export default function App() {
       setAllowances(rows)
       if (rows.length === 0) setStatus(customToken ? 'No Approval events found for this token.' : 'Add a token address to check, or set the accepted-token list (see README).')
     } catch (e) {
-      setStatus(e?.message || String(e))
+      console.error('checkAllowances failed:', e)
+      setStatus(L('loadFailed'))
     } finally {
       setChecking(false)
     }
@@ -364,7 +478,8 @@ export default function App() {
       const tx = await token.approve(row.spender, 0)
       setStatus(`Revoke tx sent (approve 0) — sign in your wallet: ${tx.hash}`)
     } catch (e) {
-      setStatus(e?.message || String(e))
+      console.error('revoke failed:', e)
+      setStatus(shortTxError(e))
     }
   }
 
@@ -385,6 +500,38 @@ export default function App() {
     }
   }
 
+  // Copy the Agentic AI prompt — clipboard API with textarea fallback
+  // (older in-app browsers). Never renders the prompt into the status line.
+  const copyAgentPrompt = async () => {
+    try {
+      await navigator.clipboard.writeText(AGENT_PROMPT)
+      setStatus(L('promptCopied'))
+      return
+    } catch { /* fall through to the textarea fallback */ }
+    const ta = document.createElement('textarea')
+    ta.value = AGENT_PROMPT
+    ta.style.position = 'fixed'
+    ta.style.opacity = '0'
+    document.body.appendChild(ta)
+    ta.select()
+    try {
+      document.execCommand('copy')
+      setStatus(L('promptCopied'))
+    } catch {
+      // Last resort: select the <pre> text so the user can copy manually.
+      const el = document.getElementById('agentPrompt')
+      if (el) {
+        const range = document.createRange()
+        range.selectNodeContents(el)
+        const sel = window.getSelection()
+        sel.removeAllRanges()
+        sel.addRange(range)
+      }
+      setStatus(L('copyManually'))
+    }
+    document.body.removeChild(ta)
+  }
+
   return (
     <div>
       <header>
@@ -402,7 +549,10 @@ export default function App() {
           {account ? (
             <button className="btn btn-secondary" onClick={() => setAccount('')}>{L('disconnect')}</button>
           ) : (
-            <button className="btn" onClick={connect}>{L('connect')}</button>
+            <span className="connect-wrap">
+              <button className="btn" onClick={connect}>{L('connect')}</button>
+              <span className="agentic-note">{L('agenticNote')}</span>
+            </span>
           )}
         </div>
       </header>
@@ -450,7 +600,10 @@ export default function App() {
                   {account ? (
                     <p><button className="btn btn-big" onClick={() => setPage('challenge')}>{L('goChallenge')}</button></p>
                   ) : (
-                    <p><button className="btn btn-big" onClick={connect}>{L('connect')}</button></p>
+                    <>
+                      <p><button className="btn btn-big" onClick={connect}>{L('connect')}</button></p>
+                      <p className="muted agentic-note">{L('agenticNote')}</p>
+                    </>
                   )}
                 </div>
               </div>
@@ -466,6 +619,18 @@ export default function App() {
               <p className="muted" style={{ marginTop: 14 }}>{L('how4')}</p>
               <p className="muted">Final snapshot: {SNAPSHOT}. Agent ID: <code>{AGENT_ID_ADDRESS}</code></p>
               {VERIFIER_URL && <p className="muted">Verifier: <code>{VERIFIER_URL}</code></p>}
+            </div>
+
+            <div className="card">
+              <h2>{L('aiTitle')}</h2>
+              <p className="muted">{L('aiDesc')}</p>
+              <ol className="steps">
+                {[L('aiStep1'), L('aiStep2'), L('aiStep3')].map((s, i) => (
+                  <li key={i}>{s.replace(/^\d+\.\s*/, '')}</li>
+                ))}
+              </ol>
+              <p><button className="btn" type="button" onClick={copyAgentPrompt}>{L('copyPrompt')}</button></p>
+              <pre id="agentPrompt" className="prompt-box">{AGENT_PROMPT}</pre>
             </div>
 
             <div className="card">
@@ -503,6 +668,7 @@ export default function App() {
                   <button className="btn" disabled={!answer || !account || !contractReady} onClick={doCommit}>{L('commit')}</button>{' '}
                   <button className="btn btn-secondary" disabled={!answer || !salt || !account || !contractReady} onClick={doReveal}>{L('reveal')}</button>
                 </p>
+                {!account && <p className="muted agentic-note">{L('agenticNote')}</p>}
                 <div className="warning">{L('revealNote')}</div>
                 {salt && <pre className="prompt-box">{L('saltLabel')}: {salt}</pre>}
                 {hash && <pre className="prompt-box">{L('commitHash')}: {hash}</pre>}
@@ -522,7 +688,12 @@ export default function App() {
         {page === 'profile' && (
           <div className="card">
             <h2>{L('navProfile')}</h2>
-            {!account && <p><button className="btn" onClick={connect}>{L('connect')}</button></p>}
+            {!account && (
+              <>
+                <p><button className="btn" onClick={connect}>{L('connect')}</button></p>
+                <p className="muted agentic-note">{L('agenticNote')}</p>
+              </>
+            )}
             {account && (
               <>
                 <p>Wallet: <code>{account}</code></p>
