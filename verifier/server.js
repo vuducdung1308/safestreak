@@ -57,6 +57,19 @@ const TYPES = {
 const app = express()
 app.use(express.json({ limit: '64kb' }))
 
+// --- CORS: frontend chạy trên GitHub Pages (origin khác) gọi POST /attest
+// từ trình duyệt, nên mọi response phải có Access-Control-Allow-Origin.
+// Không có header này, trình duyệt chặn response dù server trả 200 (lỗi đã
+// gặp ở verifier AgentAllowance 21/11). API chỉ xác thực và ký, không dùng
+// cookie hay credential, nên "*" là đủ và an toàn.
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*')
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+  res.header('Access-Control-Allow-Headers', 'Content-Type')
+  if (req.method === 'OPTIONS') return res.sendStatus(204)
+  next()
+})
+
 let provider = null
 let signer = null
 let chainId = 56
