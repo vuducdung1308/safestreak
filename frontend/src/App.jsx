@@ -256,17 +256,21 @@ export default function App() {
     : roundStatus === 'open' ? L('roundOpen')
     : ''
   const roundNo = `Q${String(displayDay - RUN_START_DAY + 1).padStart(2, '0')}`
+  // Topic chip: the bank stores a slug (e.g. "unlimited-approval") — display
+  // only, never invented per-question data.
+  const topicLabel = question && question.topic ? question.topic.replace(/-/g, ' ').toUpperCase() : ''
 
   return (
     <div>
       <div className="topbar">
         <header>
-          <div className="logo">🔥 SafeStreak</div>
+          <div className="logo"><span className="logo-mark">S</span>SafeStreak</div>
           <div className="header-actions">
             <select className="lang-toggle" value={lang} onChange={(e) => setLang(e.target.value)} aria-label={L('language')}>
               <option value="vi">Tiếng Việt</option>
               <option value="en">English</option>
             </select>
+            <a className="btn btn-cta" href="#ai-card">{L('playCta')}</a>
           </div>
         </header>
       </div>
@@ -278,7 +282,7 @@ export default function App() {
 
         <div className="hero-wrap">
           <div className="hero-left">
-            <h1>SafeStreak</h1>
+            <h1>Safe<span className="accent">Streak</span></h1>
             <p className="hero-sub">{L('tagline')}</p>
             <div className="stat-pills">
               <span className="pill">{L('currentRound')}: <strong>&nbsp;{roundNo} · {dateOfDay(displayDay)}</strong></span>
@@ -290,9 +294,48 @@ export default function App() {
             )}
             <p className="proof-line">{L('onChainProof')}: {SAFESTREAK_ADDRESS && <><a href={BSCSCAN_ADDRESS + SAFESTREAK_ADDRESS} target="_blank" rel="noopener">SafeStreak</a> · </>}<a href={BSCSCAN_ADDRESS + BADGE_ADDRESS} target="_blank" rel="noopener">Badge</a></p>
           </div>
+          <div className="hero-right">
+            <div className="featured-card">
+              <span className="featured-chip">{L('featured')}</span>
+              {!question ? (
+                <p className="muted">{L('noChallenge')}</p>
+              ) : (
+                <>
+                  <p className="featured-question">{question.question[lang] || question.question.en}</p>
+                  <div className="meta-chips">
+                    {topicLabel && <span className="meta-chip meta-chip-topic">{topicLabel}</span>}
+                    <span className="meta-chip">{roundNo}</span>
+                    <span className="meta-chip">{dateOfDay(displayDay)}</span>
+                    <span className="meta-chip">{L('readTime')}</span>
+                  </div>
+                  <p><a className="linklike" href="#round-card">{L('viewQuestion')} ↓</a></p>
+                </>
+              )}
+            </div>
+          </div>
         </div>
 
-        <div className="card">
+        <div className="tile-grid">
+          <div className="tile">
+            <div className="tile-label">{L('roundStatusLabel')}</div>
+            <div className="tile-value yellow">{roundLabel || '—'}</div>
+          </div>
+          <div className="tile">
+            <div className="tile-label">{L('playersThisRound')}</div>
+            <div className="tile-value">{round ? round.results.length : '—'}</div>
+          </div>
+          <div className="tile">
+            <div className="tile-label">{L('totalPlayers')}</div>
+            <div className="tile-value">{leaderboard.length}</div>
+          </div>
+          <div className="tile">
+            <div className="tile-label">{L('snapshotLabel')}</div>
+            <div className="tile-value">{SNAPSHOT.split(' ')[0]}</div>
+          </div>
+        </div>
+
+        <div className="card" id="round-card">
+          <p className="eyebrow">{L('eyebrowRound')}</p>
           <h2>{L('roundTitle')} — {roundNo}</h2>
           {roundLabel && <p><span className={`round-status status-${roundStatus}`}>{roundLabel}</span></p>}
           {roundStatus === 'open' && (
@@ -331,6 +374,7 @@ export default function App() {
         </div>
 
         <div className="card">
+          <p className="eyebrow">{L('eyebrowParticipants')}</p>
           <h2>{L('participantsTitle')} — {roundNo}</h2>
           {!round || round.results.length === 0 ? (
             <p className="muted">{L('participantsEmpty')}</p>
@@ -360,6 +404,7 @@ export default function App() {
         </div>
 
         <div className="card">
+          <p className="eyebrow">{L('eyebrowLeaderboard')}</p>
           <h2>{L('leaderboardTitle')}</h2>
           <p className="muted">{L('leaderboardNote')}</p>
           <p className="muted">Final snapshot: {SNAPSHOT}</p>
@@ -377,7 +422,8 @@ export default function App() {
           )}
         </div>
 
-        <div className="card">
+        <div className="card ai-banner" id="ai-card">
+          <p className="eyebrow">{L('eyebrowAi')}</p>
           <h2>{L('aiTitle')}</h2>
           <p className="muted">{L('aiDesc')}</p>
           <ol className="steps">
