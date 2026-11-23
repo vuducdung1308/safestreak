@@ -126,7 +126,12 @@ function countdownToMidnightUTC() {
 }
 
 function badgesFor(bestStreak) {
-  return [3, 7, 14].filter((n) => bestStreak >= n).map((n) => `🏅 ${n}`)
+  return [3, 7, 14].filter((n) => bestStreak >= n)
+}
+
+// Next badge milestone after the current streak (for the profile ring).
+function nextMilestone(current) {
+  return [3, 7, 14].find((m) => m > current) || 14
 }
 
 export default function App() {
@@ -534,6 +539,7 @@ export default function App() {
 
   return (
     <div>
+      <div className="topbar">
       <header>
         <div className="logo">🔥 SafeStreak</div>
         <div className="header-actions">
@@ -563,8 +569,9 @@ export default function App() {
           </button>
         ))}
       </nav>
+      </div>
       <main>
-        <div className="warning">⚠️ {L('warning')}</div>
+        <div className="warning">{L('warning')}</div>
         {!contractReady && <div className="warning">{L('contractNotDeployed')}</div>}
         {providerError && <div className="error-box">{providerError}</div>}
         {status && <div className="notice"><code>{status}</code></div>}
@@ -638,7 +645,7 @@ export default function App() {
               {leaderboard.length === 0 ? <p className="muted">{L('noHistory')}</p> : (
                 <ol className="history-list">
                   {leaderboard.slice(0, 3).map((r, i) => (
-                    <li key={r.address}>{['🥇', '🥈', '🥉'][i]} {r.handle || r.address.slice(0, 6) + '…' + r.address.slice(-4)} — {r.points} {L('points')} · {L('bestStreak')} {r.best}</li>
+                    <li key={r.address}><span className={`rank-num rank-${i + 1}`}>{i + 1}</span><span>{r.handle || r.address.slice(0, 6) + '…' + r.address.slice(-4)} — {r.points} {L('points')} · {L('bestStreak')} {r.best}</span></li>
                   ))}
                 </ol>
               )}
@@ -701,8 +708,24 @@ export default function App() {
                 {streak && (
                   <>
                     <div className="score-hero">
-                      <div className="score-hero-label">{L('currentStreak')}</div>
-                      <div className="score-hero-value">{streak.current}</div>
+                      <div className="score-ring">
+                        <svg viewBox="0 0 120 120" aria-hidden="true">
+                          <circle className="ring-track" cx="60" cy="60" r="52" />
+                          <circle
+                            className="ring-fill"
+                            cx="60"
+                            cy="60"
+                            r="52"
+                            transform="rotate(-90 60 60)"
+                            strokeDasharray={2 * Math.PI * 52}
+                            strokeDashoffset={2 * Math.PI * 52 * (1 - Math.min(streak.current / nextMilestone(streak.current), 1))}
+                          />
+                        </svg>
+                        <div className="score-hero-inner">
+                          <div className="score-hero-label">{L('currentStreak')}</div>
+                          <div className="score-hero-value">{streak.current}</div>
+                        </div>
+                      </div>
                       <div className="score-hero-sub">{L('bestStreak')}: {streak.best} · {L('totalCorrect')}: {streak.totalCorrect}</div>
                     </div>
                     <div className="stat-grid">
@@ -711,7 +734,7 @@ export default function App() {
                       <div className="stat"><div className="num">{streak.points}</div><div className="lbl">{L('points')}</div></div>
                     </div>
                     <p style={{ marginTop: 14 }}>{L('badges')}: {badgesFor(streak.best).length > 0
-                      ? badgesFor(streak.best).map((b) => <span key={b} className="badge-tier badge-gold">{b}</span>)
+                      ? badgesFor(streak.best).map((b) => <span key={b} className="badge-tier"><span className="badge-dot" />{b}</span>)
                       : '—'}</p>
                     <p>
                       <button className="btn btn-secondary" onClick={shareStreak}>{L('shareStreak')}</button>
@@ -720,7 +743,7 @@ export default function App() {
                 )}
                 <h3>{L('history')}</h3>
                 {history.length === 0 ? <p className="muted">{L('noHistory')}</p> : (
-                  <ul className="history-list">{history.map((h, i) => <li key={i}>#{h.dayId} — {h.correct ? '✓' : '✗'} — <code>{h.tx.slice(0, 18)}…</code></li>)}</ul>
+                  <ul className="history-list">{history.map((h, i) => <li key={i}>#{h.dayId} — {h.correct ? <span className="ok">✓</span> : <span className="bad">✗</span>} — <code>{h.tx.slice(0, 18)}…</code></li>)}</ul>
                 )}
                 <h3>{L('onChainProof')}</h3>
                 {SAFESTREAK_ADDRESS && <p className="proof-line">SafeStreak: <a href={BSCSCAN_ADDRESS + SAFESTREAK_ADDRESS} target="_blank" rel="noopener">{SAFESTREAK_ADDRESS}</a></p>}
@@ -736,14 +759,16 @@ export default function App() {
             <p className="muted">{L('leaderboardNote')}</p>
             <p className="muted">Final snapshot: {SNAPSHOT}</p>
             {leaderboard.length === 0 ? <p className="muted">{L('noHistory')}</p> : (
+              <div className="table-wrap">
               <table>
                 <thead><tr><th>#</th><th>Name</th><th>{L('points')}</th><th>{L('bestStreak')}</th></tr></thead>
                 <tbody>
                   {leaderboard.map((r, i) => (
-                    <tr key={r.address}><td>{i < 3 ? ['🥇', '🥈', '🥉'][i] : i + 1}</td><td>{r.handle || r.address.slice(0, 6) + '…' + r.address.slice(-4)}</td><td>{r.points}</td><td>{r.best}</td></tr>
+                    <tr key={r.address}><td>{i < 3 ? <span className={`rank-num rank-${i + 1}`}>{i + 1}</span> : <span className="rank-num">{i + 1}</span>}</td><td>{r.handle || r.address.slice(0, 6) + '…' + r.address.slice(-4)}</td><td>{r.points}</td><td>{r.best}</td></tr>
                   ))}
                 </tbody>
               </table>
+              </div>
             )}
           </div>
         )}
@@ -758,6 +783,7 @@ export default function App() {
               <button className="btn" disabled={!account || checking} onClick={checkAllowances}>{L('check')}</button>
             </p>
             {allowances.length > 0 && (
+              <div className="table-wrap">
               <table>
                 <thead><tr><th>Token</th><th>Spender</th><th>Allowance</th><th>Flags</th><th></th></tr></thead>
                 <tbody>
@@ -776,6 +802,7 @@ export default function App() {
                   ))}
                 </tbody>
               </table>
+              </div>
             )}
           </div>
         )}
@@ -786,7 +813,7 @@ export default function App() {
             <p className="muted">{L('statsNote')}</p>
             {!stats ? <p className="muted">{L('noHistory')}</p> : (
               <>
-                <div className="stat-grid">
+                <div className="stat-grid stat-grid-4">
                   <div className="stat"><div className="num">{stats.uniqueAgentIds}</div><div className="lbl">{L('uniqueAgentIds')}</div></div>
                   <div className="stat"><div className="num">{stats.byType.Committed}</div><div className="lbl">Committed</div></div>
                   <div className="stat"><div className="num">{stats.byType.Revealed}</div><div className="lbl">Revealed</div></div>
