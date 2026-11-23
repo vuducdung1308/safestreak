@@ -22,7 +22,7 @@ export const STRINGS = {
     connect: 'Connect wallet (Binance App dApp browser)',
     agenticNote:
       'The Agentic Wallet cannot log in to the web — use Binance AI or Claude Code, see “Use Agentic AI” below.',
-    aiTitle: '🤖 Use Agentic AI',
+    aiTitle: 'Use Agentic AI',
     aiDesc:
       'No wallet browser login needed — your agent plays the daily challenge, checks approvals and attests on-chain with your Agentic Wallet, with on-chain proof.',
     aiStep1: 'Copy the prompt below.',
@@ -97,7 +97,7 @@ export const STRINGS = {
     connect: 'Kết nối ví (trình duyệt dApp trong app Binance)',
     agenticNote:
       'Ví Agentic không đăng nhập web được — dùng Binance AI hoặc Claude Code, xem mục “Dùng Agentic AI” bên dưới.',
-    aiTitle: '🤖 Dùng Agentic AI',
+    aiTitle: 'Dùng Agentic AI',
     aiDesc:
       'Không cần đăng nhập ví trên trình duyệt — agent của bạn tự chơi thử thách hằng ngày, kiểm tra approval và xác nhận điểm on-chain bằng ví Agentic, có bằng chứng on-chain.',
     aiStep1: 'Sao chép prompt bên dưới.',
