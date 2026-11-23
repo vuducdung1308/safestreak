@@ -190,6 +190,8 @@ app.post('/attest', async (req, res) => {
 const DEPLOY_BLOCK = 134663434
 const AGENT_ID_ADDRESS = process.env.AGENT_ID_ADDRESS || '0x60b9262456de011f7d15a54cdd8c48baaa8b022f'
 const SAFESTREAK_READ_ABI = [
+  'event ChallengePublished(uint256 indexed dayId, bytes32 contentHash, bytes32 answerCommit)',
+  'event AnswerRevealed(uint256 indexed dayId, string answer)',
   'event Committed(address indexed user, uint256 indexed dayId)',
   'event Revealed(address indexed user, uint256 indexed dayId, bool correct)',
   'event StreakUpdated(address indexed user, uint8 indexed branch, uint256 newStreak, uint256 bestStreak)',
@@ -203,6 +205,7 @@ const LOG_CONCURRENCY = 10
 const CACHE_TTL_MS = 120_000
 let leaderboardCache = { at: 0, data: null }
 let statsCache = { at: 0, data: null }
+const roundCache = new Map() // dayId -> { at, data }
 
 function shortAddress(addr) {
   const a = String(addr || '')
@@ -322,6 +325,77 @@ async function computeStats() {
   return data
 }
 
+// --- GET /round?day=<dayId> ---
+// One round's scoreboard data for the single-page site: whether the challenge
+// was published, the revealed answer (only after the on-chain AnswerRevealed
+// event exists — never before), and every participant's result (committed?
+// revealed? correct?). Same 120s cache and chunked-scan pattern as
+// /leaderboard; all log queries start at the deploy block.
+async function computeRound(dayId) {
+  const now = Date.now()
+  const cached = roundCache.get(dayId)
+  if (cached && now - cached.at < CACHE_TTL_MS) return cached.data
+  if (!provider || !SAFESTREAK_ADDRESS) {
+    throw new Error('verifier not configured: RPC_URL / SAFESTREAK_ADDRESS')
+  }
+  const contract = new ethers.Contract(SAFESTREAK_ADDRESS, SAFESTREAK_READ_ABI, provider)
+  const [published, revealedAnswer, committed, revealed] = await Promise.all([
+    getEventLogs(contract, contract.filters.ChallengePublished(dayId)),
+    getEventLogs(contract, contract.filters.AnswerRevealed(dayId)),
+    getEventLogs(contract, contract.filters.Committed(null, dayId)),
+    getEventLogs(contract, contract.filters.Revealed(null, dayId)),
+  ])
+  const byUser = new Map()
+  for (const e of committed) {
+    const addr = e.args.user
+    const key = addr.toLowerCase()
+    if (!byUser.has(key)) {
+      byUser.set(key, {
+        address: addr,
+        committed: true,
+        committedBlock: e.blockNumber,
+        revealed: false,
+        correct: null,
+      })
+    }
+  }
+  for (const e of revealed) {
+    const key = e.args.user.toLowerCase()
+    const row = byUser.get(key) || {
+      address: e.args.user,
+      committed: false,
+      committedBlock: null,
+      revealed: false,
+      correct: null,
+    }
+    row.revealed = true
+    row.correct = Boolean(e.args.correct)
+    byUser.set(key, row)
+  }
+  const results = [...byUser.values()].sort(
+    (a, b) => (a.committedBlock || Infinity) - (b.committedBlock || Infinity),
+  )
+  // .ai names from the Agent ID contract; fall back to the short address.
+  const agentId = new ethers.Contract(AGENT_ID_ADDRESS, AGENT_ID_MIN_ABI, provider)
+  for (const r of results) {
+    try {
+      r.handle = (await agentId.handleOf(r.address)) || shortAddress(r.address)
+    } catch {
+      r.handle = shortAddress(r.address)
+    }
+  }
+  const data = {
+    dayId,
+    exists: published.length > 0,
+    contentHash: published.length > 0 ? published[0].args.contentHash : null,
+    answer: revealedAnswer.length > 0 ? revealedAnswer[0].args.answer : null,
+    results,
+    updatedAt: Math.floor(now / 1000),
+  }
+  roundCache.set(dayId, { at: now, data })
+  return data
+}
+
 app.get('/leaderboard', async (req, res) => {
   try {
     return res.json(await computeLeaderboard())
@@ -337,6 +411,19 @@ app.get('/stats', async (req, res) => {
   } catch (err) {
     console.error('GET /stats error:', err && err.message ? err.message : 'unknown error')
     return res.status(500).json({ error: 'could not load stats' })
+  }
+})
+
+app.get('/round', async (req, res) => {
+  try {
+    const day = Number(req.query.day)
+    if (!Number.isInteger(day) || day <= 0) {
+      return res.status(400).json({ error: 'invalid day (expected a UTC epoch day, e.g. 20784)' })
+    }
+    return res.json(await computeRound(day))
+  } catch (err) {
+    console.error('GET /round error:', err && err.message ? err.message : 'unknown error')
+    return res.status(500).json({ error: 'could not load round' })
   }
 })
 
