@@ -713,3 +713,62 @@ footer code { color: #8fa1b8; }
   table { font-size: 13.5px; }
   th, td { padding: 10px 8px; }
 }
+
+/* --- Single-page scoreboard additions (2026-11-23) --- */
+.round-status {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+.status-open {
+  color: #10B981;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+}
+.status-waiting {
+  color: #F59E0B;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+.status-revealed {
+  color: #3B82F6;
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.35);
+}
+.status-upcoming {
+  color: #8A94A6;
+  background: rgba(138, 148, 166, 0.12);
+  border: 1px solid rgba(138, 148, 166, 0.35);
+}
+.option-static {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 12px 14px;
+  margin: 8px 0;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  color: #E6EAF2;
+}
+.option-static.correct {
+  border-color: rgba(16, 185, 129, 0.55);
+  background: rgba(16, 185, 129, 0.10);
+}
+.result-correct {
+  color: #10B981;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.result-wrong {
+  color: #EF4444;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.result-pending {
+  color: #8A94A6;
+  white-space: nowrap;
+}
